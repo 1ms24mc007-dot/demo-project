@@ -1,0 +1,119 @@
+Create the Lambda Function
+Step 1: Open Lambda
+AWS Console → Search Lambda → Open AWS Lambda
+Step 2: Create function
+Click Create function
+Select - Author from scratch
+Function name: StudentGradeLogger
+Runtime: Python 3.11
+Architecture: x86_64 (default)
+Step 3: Permissions (Execution Role)
+Under “Permissions”
+Choose: Create a new role with basic Lambda permissions
+This automatically gives permission to write logs to CloudWatch.
+Click Create function
+
+
+
+Add Code (Business Logic + Logs)
+Step 4: Paste this code
+In Code tab → lambda_function.py → paste and Deploy
+import json
+
+def lambda_handler(event, context):
+    # Welcome message
+    print("Lambda invoked successfully")
+
+    # Read input from event
+    student_name = event["StudentName"]
+    marks = event["Marks"]
+
+    # Business logic: grade calculation
+    if marks >= 75:
+        result = "Pass"
+        grade = "A"
+    else:
+        result = "Fail"
+        grade = "F"
+
+    # Log output
+    print("Student:", student_name)
+    print("Marks:", marks)
+    print("Grade:", grade)
+    print("Result:", result)
+
+    # Return response
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "StudentName": student_name,
+            "Marks": marks,
+            "Grade": grade,
+            "Result": result
+        })
+    }
+Click Deploy.
+
+
+
+Test with Input Events (JSON)
+Step 5: Create a test event (Valid case)
+Go to Test (top right) → Configure test event
+Event name: ValidInput
+Paste this JSON:
+{
+  "StudentName": "Anita",
+  "Marks": 86
+}
+Click Save
+
+
+Step 6: Run test
+Click Test
+Expected response (sample):
+statusCode: 200
+body will include Grade A and Result Pass
+
+
+Step 7: Test invalid input (Missing Marks)
+Create another test event:
+Event name: MissingMarks
+{
+  "StudentName": "Rahul"
+}
+Run Test
+Expected:
+statusCode: 400
+message: Missing 'Marks'
+
+
+Step 8: Test invalid marks range
+Event name: InvalidMarks
+{
+  "StudentName": "Priya",
+  "Marks": 150
+}
+Expected:
+statusCode: 400
+message: Marks must be 0–100
+
+View Logs in CloudWatch
+Step 9: Open logs from Lambda directly
+On the Lambda function page:
+Go to Monitor tab
+Click View CloudWatch logs
+You will see:
+Log group: /aws/lambda/StudentGradeLogger
+Open latest log stream
+You should see all print() outputs:
+“Lambda invoked successfully!”
+“Received event…”
+grade/result logs
+error logs for invalid tests
+
+Cleanup (Avoid charges, keep account clean)
+Lambda itself usually costs nothing in small use, but cleanup is good practice:
+Lambda → Functions → select StudentGradeLogger → Delete
+CloudWatch → Log groups → find /aws/lambda/StudentGradeLogger → Delete
+IAM role created (optional):
+IAM → Roles → search role name created for Lambda → delete (only if not used elsewhere)
