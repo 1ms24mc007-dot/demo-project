@@ -1,0 +1,98 @@
+Part A — Create Sample CSV (on your PC)
+Open Notepad
+Paste this data and save as: students.csv
+StudentID,Name,Dept,Marks,Result
+101,Anita,MCA,85,Pass
+102,Ravi,MCA,72,Pass
+103,Meera,MBA,64,Pass
+104,John,MCA,35,Fail
+105,Sneha,MBA,91,Pass
+106,Arun,MCA,49,Fail
+107,Kiran,MBA,58,Pass
+108,Divya,MCA,77,Pass
+
+Part B — Create S3 Bucket and Upload CSV
+Go to AWS Console → S3
+Click Create bucket
+Bucket name: athena-lab-<yourname>-<number> (must be globally unique)
+Keep defaults → Click Create bucket
+Open the bucket → Click Upload
+Upload students.csv
+Click Upload
+Now your CSV is in S3.
+
+Part C — Open Athena and Set Query Result Location (IMPORTANT)
+Go to AWS Console → Amazon Athena
+If it shows “Get started” / “Query editor”, open it.
+It will ask to set a Query result location
+Click the link/button like Settings / Manage / Edit
+Set query result location to something like:
+s3://your-bucket-name/athena-results/
+Click Save
+This is required so Athena can store query outputs.
+
+Part D — Create a Database in Athena
+In Athena query editor, run:
+CREATE DATABASE labdb;
+Then on the left side, select:
+Data source: AwsDataCatalog
+Database: labdb
+
+Part E — Create a Table for the CSV in S3
+Run this (replace YOUR_BUCKET_NAME with your actual bucket name):
+CREATE EXTERNAL TABLE IF NOT EXISTS students (
+  StudentID int,
+  Name string,
+  Dept string,
+  Marks int,
+  Result string
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+  'separatorChar' = ',',
+  'quoteChar'     = '"',
+  'escapeChar'    = '\\'
+)
+STORED AS TEXTFILE
+LOCATION 's3://YOUR_BUCKET_NAME/'
+TBLPROPERTIES ('skip.header.line.count'='1');
+This tells Athena: “My CSV is in S3, treat it like a table.”
+
+Part F — Run Simple Analysis Queries (Core Part)
+1) View all rows
+SELECT * FROM students;
+Expected: 8 records.
+2) Total students
+SELECT COUNT(*) AS total_students FROM students;
+Expected: 8
+3) Pass vs Fail count
+SELECT Result, COUNT(*) AS cnt
+FROM students
+GROUP BY Result;
+Expected (based on data): Pass = 6, Fail = 2
+4) Average marks overall
+SELECT AVG(Marks) AS avg_marks
+FROM students;
+5) Department-wise average marks
+SELECT Dept, AVG(Marks) AS avg_marks
+FROM students
+GROUP BY Dept;
+6) Top scorer
+SELECT Name, Dept, Marks
+FROM students
+ORDER BY Marks DESC
+LIMIT 1;
+Expected: Sneha (91)
+7) List failed students
+SELECT StudentID, Name, Dept, Marks
+FROM students
+WHERE Result = 'Fail';
+Expected: John, Arun
+
+Cleanup (to avoid any charges)
+In Athena, you can keep DB/table (no cost by itself), but clean S3:
+Go to S3 bucket
+Delete:
+students.csv
+athena-results/ folder contents (query outputs)
+Delete the bucket (must be empty to delete)
