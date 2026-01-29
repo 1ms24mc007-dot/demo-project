@@ -1,0 +1,141 @@
+Create SNS Topic + Email Subscription
+Step 1: Open SNS
+AWS Console → Search SNS → Open Simple Notification Service
+Step 2: Create a Topic
+SNS → Topics → Create topic
+Type: Standard
+Name: NotificationTopic
+Click Create topic
+
+Step 3: Copy Topic ARN
+Open the created topic → copy Topic ARN
+(You will paste it into Lambda code later)
+Step 4: Create an Email Subscription
+Inside the same topic:
+Click Create subscription
+Protocol: Email
+Endpoint: (your email id)
+Click Create subscription
+
+Step 5: Confirm Subscription
+Open your email inbox → find AWS SNS confirmation mail → click Confirm subscription
+→ Status in SNS should become Confirmed.
+
+
+Create Lambda Function
+Step 6: Open Lambda
+AWS Console → Search Lambda → Open AWS Lambda
+Step 7: Create function
+Click Create function
+Select: Author from scratch
+Function name: NotificationSimulator
+Runtime: Python 3.11
+Permissions: Create a new role with basic Lambda permissions
+Click Create function
+
+
+Add Lambda Code (with SNS Publish)
+Step 8: Paste code in lambda_function.py
+Lambda → Code tab → open lambda_function.py → remove existing code → paste:
+Replace <SNS_TOPIC_ARN> with your copied Topic ARN.
+import json
+import boto3
+
+sns = boto3.client('sns')
+
+TOPIC_ARN = "<SNS_TOPIC_ARN>"
+
+def lambda_handler(event, context):
+    print("Notification Simulator invoked")
+
+    event_type = event["eventType"]
+    user = event["user"]
+
+    if event_type == "ORDER_PLACED":
+        message = f"Hi {user}, your order is placed successfully."
+        priority = "NORMAL"
+
+    elif event_type == "PAYMENT_FAILED":
+        message = f"Hi {user}, your payment has failed. Please retry."
+        priority = "HIGH"
+
+    elif event_type == "LOW_ATTENDANCE":
+        message = f"Hi {user}, your attendance is low. Please take action."
+        priority = "HIGH"
+
+    else:
+        message = f"Hi {user}, unknown event received."
+        priority = "LOW"
+
+    print("Event Type:", event_type)
+    print("Message:", message)
+    print("Priority:", priority)
+
+    # Publish to SNS (Actual notification delivery)
+    sns.publish(TopicArn=TOPIC_ARN, Message=message, Subject=f"{event_type} [{priority}]")
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "EventType": event_type,
+            "Message": message,
+            "Priority": priority
+        })
+    }
+
+Click Deploy
+Wait for “Successfully updated function…”
+
+
+Give Lambda Permission to Publish to SNS
+Step 10: Open Lambda Execution Role
+Lambda → Configuration → Permissions
+Click the Role name (execution role link)
+
+Step 11: Attach SNS Publish Policy
+IAM Role page → Add permissions → Attach policies
+Attach: AmazonSNSFullAccess
+Click Add permissions
+Now Lambda can publish to SNS.
+
+
+Test the Mini Project
+Step 12: Create a test event
+Lambda → Test tab → Create new test event
+Event name: PaymentFailed
+Paste:
+{
+  "eventType": "PAYMENT_FAILED",
+  "user": "Anita"
+}
+Click Save
+Step 13: Run Test
+Click Test
+Expected:
+Execution: Succeeded
+Email should arrive within a few seconds:
+Subject like: PAYMENT_FAILED [HIGH]
+Message: “Hi Anita, your payment has failed. Please retry.”
+
+
+Verify CloudWatch Logs
+Step 14: View logs
+Lambda → Monitor → View CloudWatch logs
+Open latest log stream.
+Verify these prints exist:
+Notification Simulator invoked
+Event Type:
+Message:
+Priority:
+
+
+Expected Outputs
+Lambda test status: Succeeded
+Email received from SNS with correct message
+CloudWatch logs showing event type and generated message
+
+Cleanup
+Delete Lambda function: NotificationSimulator
+SNS → delete topic NotificationTopic (subscriptions removed automatically)
+CloudWatch → delete log group for Lambda
+(Optional) Delete IAM role if not used elsewhere
