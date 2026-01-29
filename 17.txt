@@ -1,0 +1,344 @@
+Folder Structure (on EC2 instance)
+Create the following structure inside the EC2 instance:
+FlaskLoginApp/
+ ├── app.py
+ ├── db_config.py
+ └── templates/
+       ├── register.html
+       ├── login.html
+       ├── success.html
+       ├── error.html
+       └── welcome.html
+
+From EC2Create Database and Table in RDS MySQL
+Where:
+The SQL commands are executed from the EC2 instance, by connecting to the RDS MySQL database using the MySQL client.
+When:
+After the RDS MySQL instance status becomes “Available”
+and after allowing EC2 security group access in RDS inbound rules.
+Create:
+A database: flaskdb
+A table: users
+SQL: Create Database and Table
+CREATE DATABASE flaskdb;
+
+USE flaskdb;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    password VARCHAR(50) NOT NULL
+);
+id – unique identifier for each user (auto-increment primary key).
+name – username (cannot be NULL).
+password – password (cannot be NULL).
+Note: For learning purposes, we store plain text. In real systems, passwords must be hashed.
+Flask Application Code (Backend)
+6.1 db_config.py
+This file stores the RDS MySQL connection details.
+# db_config.py
+db_config = {
+    'host': 'your-rds-endpoint.amazonaws.com',  
+    # e.g., flaskdb-instance.xxxxxx.ap-south-1.rds.amazonaws.com
+    'user': 'admin',                            # master username created in RDS
+    'password': 'YourPasswordHere',             # master password created in RDS
+    'database': 'flaskdb'                       # database name created in MySQL
+}
+Replace host, user, and password with the actual values from the RDS instance.
+
+6.2 app.py
+This is the main Flask application.
+# app.py
+from flask import Flask, request, render_template
+import mysql.connector
+from db_config import db_config
+
+app = Flask(__name__)
+
+# Function to create a new database connection
+def get_connection():
+    return mysql.connector.connect(**db_config)
+
+@app.route('/')
+def home():
+    return render_template('register.html')
+
+@app.route('/register', methods=['POST'])
+def register():
+    name = request.form['uname']
+    password = request.form['pwd']
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    sql = "INSERT INTO users (name, password) VALUES (%s, %s)"
+    cur.execute(sql, (name, password))
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    # Use HTML template for success page
+    return render_template('success.html')
+
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+@app.route('/validate', methods=['POST'])
+def validate():
+    name = request.form['uname']
+    password = request.form['pwd']
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    sql = "SELECT * FROM users WHERE name = %s AND password = %s"
+    cur.execute(sql, (name, password))
+    user = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if user:
+        # Successful login -> welcome page
+        return render_template('welcome.html', username=name)
+    else:
+        # Invalid login -> error page
+        return render_template('error.html')
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+
+7. HTML Templates (Frontend)
+All HTML files go inside the templates/ folder.
+7.1 templates/register.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Registration</title>
+</head>
+<body>
+    <h2>User Registration</h2>
+
+    <form action="/register" method="post">
+        <label>Name:</label>
+        <input type="text" name="uname" required><br><br>
+
+        <label>Password:</label>
+        <input type="password" name="pwd" required><br><br>
+
+        <button type="submit">Register</button>
+    </form>
+
+    <br>
+    <a href="/login">Already registered? Click here to Login</a>
+</body>
+</html>
+
+7.2 templates/login.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Login</title>
+</head>
+<body>
+    <h2>User Login</h2>
+
+    <form action="/validate" method="post">
+        <label>Name:</label>
+        <input type="text" name="uname" required><br><br>
+
+        <label>Password:</label>
+        <input type="password" name="pwd" required><br><br>
+
+        <button type="submit">Login</button>
+    </form>
+
+    <br>
+    <a href="/">New user? Click here to Register</a>
+</body>
+</html>
+
+7.3 templates/welcome.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome</title>
+</head>
+<body>
+    <h2>Welcome, {{ username }}!</h2>
+    <p>You have successfully logged in.</p>
+</body>
+</html>
+
+7.4 templates/success.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registration Successful</title>
+</head>
+<body>
+    <h3>Registration Successful!</h3>
+    <a href="/login">Click here to Login</a>
+</body>
+</html>
+
+7.5 templates/error.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Error</title>
+</head>
+<body>
+    <h3>Invalid Username or Password</h3>
+    <a href="/login">Try Again</a>
+</body>
+</html>
+
+
+Deployment Steps – 
+PHASE 1 – Launch EC2 Linux Instance
+Open AWS Management Console → EC2 → Launch instance.
+Configuration:
+Name: FlaskLoginServer
+ AMI: Amazon Linux 2023 (Free Tier eligible)
+Instance type: t3.micro (Free Tier)
+Key pair: create or select existing
+Network: Default VPC and any public subnet
+Auto-assign Public IP: Enable
+Security Group for EC2 – Inbound rules:
+Type	Port	Source	Purpose
+SSH	22	My IP	To connect via SSH/EC2 Connect
+Custom TCP	5000	0.0.0.0/0	To test Flask app in browser
+Outbound: Allow all traffic.
+Click Launch instance.
+
+PHASE 2 – Connect to EC2 and Install Dependencies
+Go to EC2 → Instances → Select instance → Connect.
+Choose EC2 Instance Connect (browser-based SSH) → Connect.
+Or open PowerShell on windows and connect using ssh command
+Update packages:
+sudo yum update -y
+Check Python version (Amazon Linux 2023 has Python 3):
+python3 --version
+Install pip (if not already installed):
+sudo dnf install python3-pip -y
+Install Flask and MySQL Connector for Python:
+pip3 install flask
+pip3 install mysql-connector-python
+
+PHASE 3 – Create Flask Project Structure on EC2
+Create project folder:
+mkdir FlaskLoginApp
+cd FlaskLoginApp
+Create templates folder:
+mkdir templates
+Create the Python and HTML files using nano:
+nano db_config.py → paste code for db_config.py
+nano app.py → paste code for app.py
+nano templates/register.html → paste register page
+nano templates/login.html → paste login page
+nano templates/welcome.html → paste welcome page
+Save each file using: CTRL + O → Enter → CTRL + X
+
+PHASE 4 – Create RDS MySQL Instance
+Go to AWS Console → RDS → Databases → Create database.
+Engine type: MySQL
+Templates: Free tier
+DB instance identifier: flaskdb-instance
+Master username: admin (example)
+Master password: <your-password>
+DB instance class: db.t3.micro (Free tier)
+Storage: e.g. 20 GB (Free tier)
+Connectivity:
+Connect to an EC2 compute resource → YES
+Select the same EC2 instance (or its security group)
+(AWS automatically performs the following:
+Selects the same VPC as EC2
+Creates/associates an RDS security group
+Adds inbound rule: MySQL (3306) from EC2 security group)
+Public access: No
+Click Create database.
+Wait until the status becomes “Available”.
+
+
+PHASE 5 – Verify RDS Security Group (Auto-configured)
+Go to AWS Console → RDS → Databases → flaskdb-instance.
+Open Connectivity & security section.
+Under VPC security groups, click the linked security group name.
+In Inbound rules, verify that the following rule exists:
+Type	Port	Source
+MySQL / Aurora	3306	EC2 Security Group
+If the rule exists, EC2 to RDS connectivity is correctly configured.
+
+
+PHASE 6 – Create Database and Table in RDS from EC2
+From the EC2 terminal, install MySQL client (MariaDB client):
+sudo dnf install mariadb105 -y   
+# if this fails, try: sudo dnf install mariadb -y
+Connect to the RDS MySQL instance from EC2:
+mysql -h <RDS-endpoint> -u admin -p
+Example: mysql -h flaskdb-instance.xxxxxx.ap-south-1.rds.amazonaws.com -u admin -p
+Inside the MySQL prompt, run following commands:
+
+CREATE DATABASE flaskdb;
+
+USE flaskdb;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    password VARCHAR(50) NOT NULL
+);
+Exit MySQL: exit;
+
+
+PHASE 7 – Configure Flask to Use RDS and Run Application
+Open db_config.py on EC2 and update with correct RDS details:
+nano db_config.py
+Ensure:
+db_config = {
+    'host': 'your-rds-endpoint.amazonaws.com',
+    'user': 'admin',
+    'password': 'YourPasswordHere',
+    'database': 'flaskdb'
+}
+Save and exit.
+Start the Flask app:
+cd ~/FlaskLoginApp
+python3 app.py
+You should see: * Running on http://0.0.0.0:5000
+
+
+
+PHASE 8 – Test the Application from Browser
+In your local system browser, open: http://<EC2-public-IP>:5000
+Example: http://13.232.122.81:5000
+You should see: Registration Page (default route /)
+After registration → success message with link to /login
+Login Page → if correct credentials → Welcome Page
+Check that data is stored in flaskdb.users table in RDS. - SELECT * FROM users;
+
+Expected Output
+Registration Page
+User enters Name and Password.
+On submit, data is inserted into users table in RDS MySQL.
+
+Login Page
+User enters same Name and Password.
+Flask executes SELECT query on users table to check match.
+
+Welcome Page
+For valid credentials:
+“Welcome, <username>! You have successfully logged in.”
+For invalid credentials:
+“Invalid Username or Password” message with link to try again.
+
+Type	Port	Source	Purpose
+SSH	22	My IP	To connect via SSH/EC2 Connect
+Custom TCP	5000	0.0.0.0/0	To test Flask app in browser
+Type	Port	Source
+MySQL / Aurora	3306	EC2 Security Group
