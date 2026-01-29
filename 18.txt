@@ -1,0 +1,126 @@
+Phase 1: Create DynamoDB Table
+Create a DynamoDB table to store Student Records.
+Store items like: USN, Name, Semester, Course, Attendance, IA1Marks
+
+Step 1: Open DynamoDB
+Login to AWS Console
+Search → type DynamoDB → open Amazon DynamoDB
+Step 2: Create a Table
+Left menu → Tables
+Click Create table
+Fill details:
+Table details
+Table name: MCA_StudentLabInternals
+Partition key (PK): USN (Type: String)
+Sort key (SK): CourseCode (Type: String)
+(Enable sort key option by setting sort key)
+Why this design?
+One student can have multiple courses → Sort key separates records per course.
+This creates a composite primary key (PK + SK).
+Step 3: Table settings
+Under Table settings, choose:
+Default settings (recommended for lab)
+Ensure Capacity mode is: On-demand (default already selected)
+Step 4: Create
+Click Create table
+Wait until table status becomes Active
+
+Phase 2: Insert Items (Create Data)
+Step 5: Open Table and Add Items
+Click the table: MCA_StudentLabInternals
+Click: Explore table items
+Click Create item
+
+Step 6: Add Item 1 (Student 1 - Course 1)
+You will see attributes:
+USN (String)
+CourseCode (String)
+Enter:
+USN = 1MS24MCA001
+CourseCode = CCL301
+Now add additional attributes (click Add new attribute):
+Name (String) = Arun
+Semester (Number) = 3
+Attendance (Number) = 86
+IA1Marks (Number) = 18
+Click Create item
+
+
+Step 7: Add Item 2 (Same student - another course)
+Repeat Create item with:
+USN = 1MS24MCA001
+CourseCode = DBS301
+Name = Arun
+Semester = 3
+Attendance = 88
+IA1Marks = 20
+
+
+Step 8: Add Item 3 (Another student)
+Create item:
+USN = 1MS24MCA002
+CourseCode = CCL301
+Name = Chitra
+Semester = 3
+Attendance = 74
+IA1Marks = 14
+You should now see 3 items in the table list.
+
+
+Phase 3: Read Data (Get / Query / Scan)
+Step 9: Get a single item (exact PK + SK)
+In “Explore table items”, use search/filter:
+Use USN = 1MS24MC001 and CourseCode = CCL301
+Open the item → verify all attributes
+Key concept:
+To uniquely identify an item in a PK+SK table, you must provide both.
+
+
+
+Step 10: Query – fetch all courses for one student
+Click Run query
+Set Partition key condition: USN equals 1MS24MCA001
+Run
+Expected output:
+Items for Arun in both CCL301 and DBS301
+Key concept:
+Query works only with Partition Key (and optional Sort Key conditions). It is efficient.
+
+
+Step 11: Scan (Not for large tables)
+Click Scan
+Run scan without filters
+Expected output:
+All items (Arun + Chitra)
+Key concept:
+Scan reads the entire table → slow/costly for big tables.
+
+
+Phase 4: Update Data
+Step 12: Update IA1 marks of Chitra for CCL301
+Open item where:
+USN = 1MS24MCA002
+CourseCode = CCL301
+Click Edit
+Change: IA1Marks from 14 to 16
+Click Save changes
+Verify updated value appears.
+
+
+Phase 5: Delete Data
+Step 13: Delete one item (Arun’s DBS301 record)
+Select item:
+USN = 1MS24MCA001
+CourseCode = DBS301
+Click Delete
+Confirm delete
+Now total items should reduce by 1.
+
+
+Phase 6: Cleanup (Must Do to avoid charges)
+Step 15: Delete the Table
+DynamoDB → Tables
+Select MCA_StudentLabInternals
+Click Delete
+Type confirmation (if asked) and delete
+Ensure table disappears from list.
