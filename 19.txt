@@ -1,0 +1,271 @@
+Phase-1: Launch EC2 Client using Amazon Linux 2023 (for Valkey / Redis Client)
+Purpose of Phase-1
+To create an EC2 instance using Amazon Linux 2023 that will act as a client machine to connect to Amazon ElastiCache (Redis OSS) using valkey-cli.
+
+Step 1: Select AWS Region
+Choose ONE region and stick to it for the entire exercise
+ap-south-1 (Mumbai) (recommended)
+Ensure ElastiCache and EC2 will be in the SAME region
+
+Step 2: Launch EC2 Instance
+Go to AWS Console → EC2
+Click Launch instance
+
+Step 3: Configure Instance Basics
+Name: RedisClient-AL2023
+AMI: Select Amazon Linux 2023 AMI
+Instance Type: Select t3.micro (Free Tier eligible)
+Key Pair: Select an existing key pair OR create a new one (RSA, .pem)
+Network & Security
+Network
+VPC: Default VPC
+Subnet: No preference
+Auto-assign public IP: Enabled
+Security Group (VERY IMPORTANT)
+Create a new security group:
+Security Group Name: SG-RedisClient
+Description: Security group for Redis client EC2
+Inbound Rules
+Type	Port	Source
+SSH	22	Anywhere 0.0.0.0/0
+
+Do NOT add Redis (6379) here (The client does not listen on 6379)
+      Outbound rules: Allow all (default)
+
+Step 5: Storage
+Keep default
+
+Step 6: Launch Instance
+Click Launch instance
+Wait until Instance State = Running
+
+
+
+Step 7: Connect to EC2
+EC2 → Instances → select RedisClient-AL2023
+Click Connect
+Choose EC2 Instance Connect
+Click Connect
+You are now inside the EC2 terminal.
+
+Step 8: Install Valkey Client 
+Run the following commands:
+sudo dnf update -y
+sudo dnf install -y valkey
+
+Verify installation:
+valkey-cli --version
+Expected Output (example)
+valkey-cli 8.x.x
+This confirms the EC2 is ready as a Redis-compatible client.
+
+
+Note: why install valkey and not redis??
+Amazon Linux 2023 does not provide redis-cli directly.
+AWS now provides Valkey, which is fully Redis-protocol compatible.
+Hence, we use valkey-cli to connect to ElastiCache Redis.
+
+Phase-2: Create Amazon ElastiCache (Redis OSS) Cluster
+Purpose of Phase-2
+To create an Amazon ElastiCache Redis OSS cluster that will act as an in-memory cache, accessible from the EC2 client created in Phase-1.
+
+Step 1: Confirm AWS Region
+Ensure you are in the same region used in Phase-1
+EC2 and ElastiCache must be in the SAME region and VPC.
+
+Step 2: Open ElastiCache Console
+AWS Console → Services
+Select ElastiCache
+Click Create cache
+
+Step 3: Select Cache Engine
+Engine: Redis OSS
+
+Step 4: Choose Deployment Settings
+Deployment option: Node-based cluster
+Creation method: Easy create
+Easy create is used to avoid advanced production settings.
+
+Step 5: Select Configuration
+Configuration: Demo
+This automatically selects:
+A small, low-cost node (e.g., cache.t4g.micro)
+Suitable for labs and practice
+
+
+Step 6: Provide Cluster Information
+Cache name: lab-redis
+Description: Optional (lab-redis)
+
+Step 7: Configure Network and Subnet Group
+Network
+Network type: IPv4
+Subnet Group
+Select: Create a new subnet group
+Subnet group name: redis-subnet-group
+VPC: Default VPC
+Subnets: Leave AWS auto-selected subnets unchanged
+No manual subnet selection required.
+
+Step 8: Configure Security
+Security Group 
+Create or select a security group:
+Name: SG-RedisCache
+Inbound Rule for Redis
+Add one inbound rule to SG-RedisCache:
+Type	Port	Source
+Custom TCP	6379	SG-RedisClient
+This allows only the EC2 client to access Redis.
+
+Step 9: Authentication
+Authentication: Disabled
+
+Step 10: Create Cache
+Review all settings
+Click Create
+Wait until Status = Available
+This may take a few minutes.
+
+
+Step 11: Note the Redis Endpoint
+Click on the cache name lab-redis
+Copy the Configuration Endpoint
+Example: lab-redis.xxxxxx.cache.amazonaws.com
+This endpoint will be used in Phase-3 to connect from EC2.
+
+Note:
+We have created an in-memory Redis cache using Amazon ElastiCache.
+It runs inside the AWS VPC and does not have a public IP.
+Only our EC2 client is allowed to access it using port 6379.
+
+
+Phase-3: Connect EC2 to ElastiCache Redis and Execute Cache Commands
+Purpose of Phase-3
+To connect the EC2 client (Amazon Linux 2023) to the ElastiCache Redis OSS cluster using valkey-cli and demonstrate basic in-memory cache operations.
+
+Pre-checks - Before connecting, confirm:
+EC2 and ElastiCache are in the same AWS region
+EC2 security group = SG-RedisClient
+Redis security group = SG-RedisCache
+Redis security group allows port 6379 from SG-RedisClient
+Redis Status = Available
+You have copied the Primary Endpoint
+
+Step 1: Connect to EC2
+AWS Console → EC2
+Select instance RedisClient-AL2023
+Click Connect
+Choose EC2 Instance Connect
+Click Connect
+You are now inside the EC2 terminal.
+
+Step 2: Verify Valkey Client
+Run: valkey-cli --version
+Expected Output (example)
+valkey-cli 8.x.x
+This confirms the EC2 is ready to act as a Redis-compatible client.
+
+Step 3: Connect to ElastiCache Redis
+Use the Configuration Endpoint from Phase-2.
+valkey-cli -h < Configuration_ENDPOINT> -p 6379
+
+Example: valkey-cli -h lab-redis.xxxxxx.cache.amazonaws.com -p 6379 --tls -c 
+
+Expected Result
+You should see a prompt like:
+lab-redis.xxxxxx.cache.amazonaws.com:6379>
+This means the connection is successful.
+Step 4: Execute Redis / Valkey Commands
+These commands simulate what an application does internally.
+
+Test Connectivity
+PING
+Expected Output
+PONG
+
+Store and Retrieve Data (SET / GET)
+SET course "Cloud Computing"
+GET course
+Expected Output
+"Cloud Computing"
+Demonstrates key–value storage in memory.
+
+Counter Example (INCR)
+INCR visits
+INCR visits
+GET visits
+Expected Output
+"2"
+NOTE: Common real-world use - page views, hit counters.
+
+4.4 Set Data with Expiry (TTL)
+SET notice "Results Published" EX 60
+TTL notice
+GET notice
+Expected Output
+TTL shows a value ≤ 60
+GET returns:
+"Results Published"
+Shows temporary cache data.
+
+4.5 Verify Automatic Expiry
+Wait ~60 seconds, then run:
+GET notice
+Expected Output
+(nil)
+Confirms data is automatically removed from memory.
+
+4.6 Delete Data Manually
+DEL course
+GET course
+Expected Output
+(nil)
+
+Step 5: Exit Redis Client
+EXIT
+
+Note:
+“The application first checks Redis.
+If data is present, it is returned immediately from memory.
+If not present, the application fetches data from the database and stores it in Redis with a TTL.
+Redis automatically removes the data after expiry.”
+
+Phase-3 Outcome
+EC2 successfully connected to ElastiCache Redis
+In-memory key–value operations verified
+Temporary storage and TTL behavior observed
+Redis used as a cache, not as a primary database
+
+Common Errors & Quick Fix 
+Problem	Reason	Fix
+Connection timeout	Wrong SG or region	Check SG-RedisCache inbound rule
+Command hangs	Redis not Available	Wait & retry
+(nil) output	Key expired	Expected behavior
+
+Clean-Up (Mandatory)
+Step 1: Delete Redis Cluster
+ElastiCache → Select lab-redis → Delete
+Disable snapshots
+Step 2: Terminate EC2 Instance
+EC2 → Instances → Terminate RedisClient-EC2
+Step 3: Optional
+Delete unused security groups
+
+Redis Commands Explanation
+SET course "Cloud Computing"
+GET course
+EXPIRE course 30
+TTL course
+The above commands simulate application caching behavior.
+The SET command represents storing frequently accessed data in cache.
+The EXPIRE command shows that cached data is temporary and stored in memory.
+After expiry, the application would fetch fresh data from the database again.
+
+Type	Port	Source
+SSH	22	Anywhere 0.0.0.0/0
+Type	Port	Source
+Custom TCP	6379	SG-RedisClient
+Problem	Reason	Fix
+Connection timeout	Wrong SG or region	Check SG-RedisCache inbound rule
+Command hangs	Redis not Available	Wait & retry
+(nil) output	Key expired	Expected behavior
