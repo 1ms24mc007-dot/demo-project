@@ -1,0 +1,72 @@
+Step 1 — Launch a Linux EC2 Instance
+Log in to the AWS Console.
+Go to EC2 → Instances → Launch Instance.
+Name: StressTest-EC2
+AMI: Amazon Linux 2023 (Free Tier eligible)
+Instance type: t2.micro / t3.micro
+Key pair: Select or create a .pem key.
+Security Group:
+Allow SSH (22) from My IP.
+Allow HTTP (80) from anywhere (optional).
+Launch the instance.
+
+Step 2 — Connect to the EC2 Instance
+Use Windows PowerShell
+Navigate to the folder where pem file is located and type the following command:
+ssh -i "your-key.pem" ec2-user@<public-ip>
+
+Step 3 — Install Apache (Optional, to verify the instance is working)
+sudo yum install httpd -y
+sudo systemctl start httpd
+sudo systemctl enable httpd
+Create a test web page:
+echo "<h1>EC2 Stress Test Demo — $(hostname)</h1>" | sudo tee /var/www/html/index.html
+
+STEP 4 — Install and Run the Stress Testing Tool (stress-ng)
+(For Amazon Linux 2023 EC2 Instances)
+Move to the ec2-user home directory
+(It is recommended to run stress-ng from the home folder)
+cd ~
+Install stress-ng
+Amazon Linux 2023 includes stress-ng directly through dnf, so install it using:
+sudo dnf install stress-ng -y
+Run a CPU Stress Test
+Generate high CPU load using 4 CPU workers for 2 minutes:
+stress-ng --cpu 4 --timeout 120
+Expected Result
+Terminal becomes busy during the 120-second load test
+After completion, you will see:
+successful run completed in 120.02s
+CPU usage will spike to 90–100% (you can check using top)
+
+
+Step 5 — Run Stress Test (CPU Load Generation)
+Move to home directory to avoid permission issues:
+cd  ~
+Run CPU stress for 2 minutes using 4 CPU workers:
+stress-ng --cpu 4 --timeout 120
+You should see messages like:
+stress-ng: info: dispatching hogs: 4 cpu
+stress-ng: info: successful run completed in 120.02s
+This will increase CPU usage to ~100% for the duration.
+
+
+Step 6 — Observe CPU Utilization in CloudWatch
+Go to CloudWatch → Metrics → EC2 → Per-Instance Metrics
+Select:
+CPUUtilization → InstanceId → your instance
+View graph in 1-minute or 5-minute intervals.
+You should see a sharp spike during the 2-minute stress period.
+
+
+Step 7 — Stop or Terminate the Instance
+To avoid charges:
+Option A — Stop the instance (safe):
+Actions → Instance State → Stop
+Option B — Terminate (permanently delete):
+Actions → Instance State → Terminate
+
+Expected Output
+CPU Utilization in CloudWatch should reach 90–100%.
+Stress test completes without errors.
+Students understand how CPU load affects EC2 metrics.
